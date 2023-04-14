@@ -15,12 +15,15 @@ repos:
     rev: 22.10.0
     hooks:
       - id: black
-  - repo: https://github.com/crate-ci/typos
-    rev: v1.8.1
-    hooks:
-      - id: typos
   - repo: local
     hooks:
+      - id: typos
+        name: typos
+        description: Check typos in the code
+        entry: bash -c 'typos'
+        language: rust
+        files: \.*$
+        args: []
       - id: cargo-fmt
         name: cargo fmt
         description: Format files with rustfmt.
