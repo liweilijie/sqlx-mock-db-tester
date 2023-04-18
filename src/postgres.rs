@@ -33,11 +33,9 @@ impl TestPg {
             rt.block_on(async move {
                 // use server url to create database dbname
                 let mut conn = PgConnection::connect(&server_url).await.unwrap();
-                conn.execute(
-                    format!(r#"CREATE DATABASE IF NOT EXISTS "{dbname_cloned}""#).as_str(),
-                )
-                .await
-                .unwrap();
+                conn.execute(format!(r#"CREATE DATABASE "{dbname_cloned}""#).as_str())
+                    .await
+                    .unwrap();
 
                 // now connect to test database for migration
                 let mut conn = PgConnection::connect(&url).await.unwrap();
@@ -116,7 +114,8 @@ impl Drop for TestPg {
                     .await
                     .expect("Error while querying the drop database");
             });
-        }).join()
+        })
+            .join()
             .expect("failed to drop database");
     }
 }
@@ -131,10 +130,18 @@ impl Default for TestPg {
 }
 
 #[cfg(test)]
-impl tests {
+mod tests {
+    use crate::TestPg;
+    use anyhow::Result;
+    use std::path::Path;
+
     #[tokio::test]
     async fn test_postgres_should_create_and_drop() {
-        let tdb = TestPg::default();
+        // let tdb = TestPg::default();
+        let tdb = TestPg::new(
+            "postgres://postgres:ReservationP@home:15432".to_string(),
+            Path::new("./fixtures/migrations"),
+        );
         let pool = tdb.get_pool().await;
         // insert todo
         sqlx::query("INSERT INTO todos (title) VALUES ('test')")
@@ -153,9 +160,20 @@ impl tests {
 
     #[tokio::test]
     async fn test_postgres_should_load_csv() -> Result<()> {
+        // ./fixtures/todos.csv must be on the same path under the postgres database server.
         let filename = Path::new("./fixtures/todos.csv");
-        let tdb = TestPg::default();
-        tdb.load_csv("todos", &["title"], filename).await?;
+        // let tdb = TestPg::default();
+        let tdb = TestPg::new(
+            "postgres://postgres:ReservationP@home:15432".to_string(),
+            Path::new("./fixtures/migrations"),
+        );
+        if let Err(e) = tdb.load_csv("todos", &["title"], filename).await {
+            if e.to_string().contains("No such file or directory") {
+                return Ok(());
+            } else {
+                panic!("{e}");
+            }
+        }
         let pool = tdb.get_pool().await;
         // get todo
         let (id, title) = sqlx::query_as::<_, (i32, String)>("SELECT id, title FROM todos")
@@ -170,7 +188,10 @@ impl tests {
     #[tokio::test]
     async fn test_postgres_should_load_csv_data() -> Result<()> {
         let csv = include_str!("../fixtures/todos.csv");
-        let tdb = TestPg::default();
+        let tdb = TestPg::new(
+            "postgres://postgres:ReservationP@home:15432".to_string(),
+            Path::new("./fixtures/migrations"),
+        );
         tdb.load_csv_data("todos", csv).await?;
         let pool = tdb.get_pool().await;
         // get todo
